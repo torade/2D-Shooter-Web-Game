@@ -35,6 +35,7 @@ class PlayGame extends Phaser.Scene {
     constructor() {
         super("PlayGame")
         this.score = 0
+        this.snowballCount = 0 // Separate counter for snowballs
     }
 
     preload() {
@@ -85,8 +86,8 @@ class PlayGame extends Phaser.Scene {
             loop: true
         })
 
-        this.add.image(16,16,'snow').setScale(0.028)
-        this.scoreText = this.add.text(32,3,'0', {fontSize: '30px', fill: '#000'})
+        this.add.image(20,20,'target').setScale(0.07)
+        this.scoreText = this.add.text(40,5,'0 XP', {fontSize: '30px', fill: '#000'})
 
         // Add snowball count text above player's head
         this.playerScoreText = this.add.text(this.dude.x, this.dude.y - 10, '0', {
@@ -157,9 +158,8 @@ class PlayGame extends Phaser.Scene {
 
     collectSnowball(dude, snowball) {
         snowball.disableBody(true, true)
-        this.score += 1;
-        this.scoreText.setText(this.score);
-        this.playerScoreText.setText(this.score); // Update player head text
+        this.snowballCount += 1; // Increase snowball count
+        this.playerScoreText.setText(this.snowballCount); // Update player head text
     }
 
     createTargets() {
@@ -180,7 +180,7 @@ class PlayGame extends Phaser.Scene {
     }
 
     shootSnowball() {
-        if (this.score > 0) { // Only shoot if player has collected snowballs
+        if (this.snowballCount > 0) { // Check snowball count instead of score
             // Create snowball at player position
             let projectile = this.thrownSnowballs.create(this.dude.x, this.dude.y - 20, 'snow')
             projectile.setScale(0.02)
@@ -191,9 +191,8 @@ class PlayGame extends Phaser.Scene {
             projectile.body.setGravityY(300) // Make it arc down
             
             // Remove snowball from player's count
-            this.score -= 1
-            this.scoreText.setText(this.score)
-            this.playerScoreText.setText(this.score)
+            this.snowballCount -= 1
+            this.playerScoreText.setText(this.snowballCount)
              
             // Remove projectile after 3 seconds
             this.time.delayedCall(3000, () => {
@@ -208,10 +207,9 @@ class PlayGame extends Phaser.Scene {
         // Remove the snowball
         snowball.destroy()
         
-        // Add points for hitting target
-        this.score += 5
-        this.scoreText.setText(this.score)
-        this.playerScoreText.setText(this.score)
+        // Add 10 points to score for hitting target
+        this.score += 10
+        this.scoreText.setText(this.score + ' XP')
         
         // Remove the hit target
         target.destroy()

@@ -129,6 +129,8 @@ class PlayGame extends Phaser.Scene {
             delay: 600,
             loop: true
         })
+
+        this.facingLeft = false // Initialize facing direction (start facing right)
     }
 
     addSnowballs() {
@@ -183,8 +185,8 @@ class PlayGame extends Phaser.Scene {
             let projectile = this.thrownSnowballs.create(this.dude.x, this.dude.y - 20, 'snow')
             projectile.setScale(0.02)
             
-            // Determine direction based on player facing
-            let velocityX = this.dude.flipX ? -400 : 400 // 400 pixels per second
+            // Determine direction based on player facing direction
+            let velocityX = this.facingLeft ? -400 : 400 // 400 pixels per second
             projectile.body.setVelocity(velocityX, -200) // Slight upward arc
             projectile.body.setGravityY(300) // Make it arc down
             
@@ -220,17 +222,20 @@ class PlayGame extends Phaser.Scene {
     update() {
         if (this.wasd.A.isDown) {
             this.dude.body.velocity.x = -gameOptions.dudeSpeed;
-            this.dude.anims.play('left', true)
-            this.dude.flipX = true // Face left
+            this.dude.anims.play('left', true) // Use left animation (frames 0-3)
+            this.dude.flipX = false // Don't flip since frames are already left-facing
+            this.facingLeft = true // Track facing direction
         }
         else if (this.wasd.D.isDown) {
             this.dude.body.velocity.x = gameOptions.dudeSpeed;
-            this.dude.anims.play('right', true)
-            this.dude.flipX = false // Face right
+            this.dude.anims.play('right', true) // Use right animation (frames 5-9)
+            this.dude.flipX = false // Don't flip since frames are already right-facing
+            this.facingLeft = false // Track facing direction
         }
         else {
             this.dude.body.velocity.x = 0;
             this.dude.anims.play('turn', true)
+            // Keep the current facing direction when turning
         }
 
         if (this.wasd.W.isDown && this.dude.body.touching.down) {

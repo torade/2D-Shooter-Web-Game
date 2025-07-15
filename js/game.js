@@ -40,7 +40,7 @@ class PlayGame extends Phaser.Scene {
     preload() {
         this.load.spritesheet('dude', 'assets/dude.png', {frameWidth: 32, frameHeight: 48})
         this.load.image('ground', 'assets/platform.png')
-        this.load.image('star', 'assets/star.png')
+        this.load.image('snow', 'assets/snow.png')
     }
 
     create() {
@@ -49,16 +49,16 @@ class PlayGame extends Phaser.Scene {
             allowGravity: false
         })
 
-        let groundSprite1 = this.ground.create(500, 750, 'ground').setScale(10, 4);
+        let groundSprite = this.ground.create(500, 750, 'ground').setScale(10, 4);
 
         this.dude = this.physics.add.sprite(game.config.width / 2, game.config.height / 2, "dude")
         this.dude.body.gravity.y = gameOptions.dudeGravity
         this.physics.add.collider(this.dude, this.ground)
 
-        this.starsGroup = this.physics.add.group({})
-        this.physics.add.overlap(this.dude, this.starsGroup, this.collectStar, null, this)
+        this.snowballsGroup = this.physics.add.group({})
+        this.physics.add.overlap(this.dude, this.snowballsGroup, this.collectSnowball, null, this)
 
-        this.add.image(16,16,'star')
+        this.add.image(16,16,'snow').setScale(0.028)
         this.scoreText = this.add.text(32,3,'0', {fontSize: '30px', fill: '#000'})
 
         this.cursors = this.input.keyboard.createCursorKeys()
@@ -82,38 +82,39 @@ class PlayGame extends Phaser.Scene {
             repeat: -1
         })
 
-        // timer to spawn stars every 1.6 seconds
-        this.starTimer = this.time.addEvent({
-            callback: this.addStars,
+        // timer to spawn snowballs every 1.6 seconds
+        this.snowballTimer = this.time.addEvent({
+            callback: this.addSnowballs,
             callbackScope: this,
             delay: 600,
             loop: true
         })
     }
 
-    addStars() {
-        // create star at random position in the sky
-        let star = this.starsGroup.create(Phaser.Math.Between(50, game.config.width - 50), Phaser.Math.Between(50, 500), "star")
-        star.body.setVelocity(0, 0) // Start stationary
-        star.body.setGravityY(0) // No gravity initially
+    addSnowballs() {
+        // create snowball at random position in the sky
+        let snowball = this.snowballsGroup.create(Phaser.Math.Between(50, game.config.width - 50), Phaser.Math.Between(50, 500), "snow")
+        snowball.setScale(0.02) // Make snowballs smaller (30% of original size)
+        snowball.body.setVelocity(0, 0) // Start stationary
+        snowball.body.setGravityY(0) // No gravity initially
         
-        // After 5 seconds, make the star fall
+        // After 5 seconds, make the snowball fall
         this.time.delayedCall(3000, () => {
-            if (star && star.active) {
-                star.body.setGravityY(400) // Make it fall
+            if (snowball && snowball.active) {
+                snowball.body.setGravityY(400) // Make it fall
             }
         })
         
-        // Remove star if it goes off screen
+        // Remove snowball if it goes off screen
         this.time.delayedCall(15000, () => {
-            if (star && star.active) {
-                star.destroy()
+            if (snowball && snowball.active) {
+                snowball.destroy()
             }
         })
     }
 
-    collectStar(dude, star) {
-        star.disableBody(true, true)
+    collectSnowball(dude, snowball) {
+        snowball.disableBody(true, true)
         this.score += 1;
         this.scoreText.setText(this.score);
     }

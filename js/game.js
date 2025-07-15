@@ -41,6 +41,7 @@ class PlayGame extends Phaser.Scene {
         this.load.spritesheet('dude', 'assets/dude.png', {frameWidth: 32, frameHeight: 48})
         this.load.image('ground', 'assets/platform.png')
         this.load.image('snow', 'assets/snow.png')
+        this.load.image('target', 'assets/target.png')
     }
 
     create() {
@@ -55,13 +56,52 @@ class PlayGame extends Phaser.Scene {
         this.dude.body.gravity.y = gameOptions.dudeGravity
         this.physics.add.collider(this.dude, this.ground)
 
+        // falling snowballs
         this.snowballsGroup = this.physics.add.group({})
         this.physics.add.overlap(this.dude, this.snowballsGroup, this.collectSnowball, null, this)
+
+        // player thrown snowballs
+        this.thrownSnowballs = this.physics.add.group({})
+
+        // targets
+        this.targetsGroup = this.physics.add.group({
+            immovable: true,
+            allowGravity: false
+        })
+        
+        this.maxTargets = 7
+        
+        // Create initial targets
+        this.createTargets()
+
+        // Collision between thrown snowballs and targets
+        this.physics.add.overlap(this.thrownSnowballs, this.targetsGroup, this.hitTarget, null, this)
+
+        // Timer to spawn new targets periodically
+        this.targetTimer = this.time.addEvent({
+            callback: this.spawnNewTarget,
+            callbackScope: this,
+            delay: 2000, // Every 2 seconds
+            loop: true
+        })
 
         this.add.image(16,16,'snow').setScale(0.028)
         this.scoreText = this.add.text(32,3,'0', {fontSize: '30px', fill: '#000'})
 
+        // Add snowball count text above player's head
+        this.playerScoreText = this.add.text(this.dude.x, this.dude.y - 10, '0', {
+            fontSize: '20px', 
+            fill: '#000',
+            padding: { x: 5, y: 2 }
+        }).setOrigin(0.5)
+
         this.cursors = this.input.keyboard.createCursorKeys()
+        
+        // Add WASD keys
+        this.wasd = this.input.keyboard.addKeys('W,S,A,D')
+        
+        // Add spacebar for shooting
+        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
 
         this.anims.create({
             key: "left",
@@ -117,24 +157,93 @@ class PlayGame extends Phaser.Scene {
         snowball.disableBody(true, true)
         this.score += 1;
         this.scoreText.setText(this.score);
+        this.playerScoreText.setText(this.score); // Update player head text
+    }
+
+    createTargets() {
+        // Create initial targets up to max limit
+        for (let i = 0; i < this.maxTargets; i++) {
+            this.spawnNewTarget()
+        }
+    }
+
+    spawnNewTarget() {
+        // Only spawn if under the limit
+        if (this.targetsGroup.children.size < this.maxTargets) {
+            let x = Phaser.Math.Between(100, game.config.width - 100)
+            let y = Phaser.Math.Between(200, 650) // Don't spawn too close to ground or top
+            
+            let target = this.targetsGroup.create(x, y, 'target').setScale(0.1)
+        }
+    }
+
+    shootSnowball() {
+        if (this.score > 0) { // Only shoot if player has collected snowballs
+            // Create snowball at player position
+            let projectile = this.thrownSnowballs.create(this.dude.x, this.dude.y - 20, 'snow')
+            projectile.setScale(0.02)
+            
+            // Determine direction based on player facing
+            let velocityX = this.dude.flipX ? -400 : 400 // 400 pixels per second
+            projectile.body.setVelocity(velocityX, -200) // Slight upward arc
+            projectile.body.setGravityY(300) // Make it arc down
+            
+            // Remove snowball from player's count
+            this.score -= 1
+            this.scoreText.setText(this.score)
+            this.playerScoreText.setText(this.score)
+             
+            // Remove projectile after 3 seconds
+            this.time.delayedCall(3000, () => {
+                if (projectile && projectile.active) {
+                    projectile.destroy()
+                }
+            })
+        }
+    }
+
+    hitTarget(snowball, target) {
+        // Remove the snowball
+        snowball.destroy()
+        
+        // Add points for hitting target
+        this.score += 5
+        this.scoreText.setText(this.score)
+        this.playerScoreText.setText(this.score)
+        
+        // Remove the hit target
+        target.destroy()
+        
+        // No need for delayed respawn - the timer will handle new targets
     }
 
     update() {
-        if (this.cursors.left.isDown) {
+        if (this.wasd.A.isDown) {
             this.dude.body.velocity.x = -gameOptions.dudeSpeed;
             this.dude.anims.play('left', true)
+            this.dude.flipX = true // Face left
         }
-        else if (this.cursors.right.isDown) {
+        else if (this.wasd.D.isDown) {
             this.dude.body.velocity.x = gameOptions.dudeSpeed;
             this.dude.anims.play('right', true)
+            this.dude.flipX = false // Face right
         }
         else {
             this.dude.body.velocity.x = 0;
             this.dude.anims.play('turn', true)
         }
 
-        if (this.cursors.up.isDown && this.dude.body.touching.down) {
+        if (this.wasd.W.isDown && this.dude.body.touching.down) {
             this.dude.body.velocity.y = -gameOptions.dudeGravity / 2;
         }
+
+        // Shoot snowball when space is pressed
+        if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+            this.shootSnowball()
+        }
+
+        // Update player score text position to follow the player
+        this.playerScoreText.x = this.dude.x;
+        this.playerScoreText.y = this.dude.y - 60;
     }
 }

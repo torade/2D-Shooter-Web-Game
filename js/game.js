@@ -35,12 +35,12 @@ class PlayGame extends Phaser.Scene {
     constructor() {
         super("PlayGame")
         this.score = 0
-        this.snowballCount = 0 // Separate counter for snowballs
+        this.snowballCount = 0 // = no. of snowballs that the player has
     }
 
     preload() {
         this.load.spritesheet('dude', 'assets/dude.png', {frameWidth: 32, frameHeight: 48})
-        this.load.image('ground', 'assets/platform.png')
+        this.load.image('ground', 'assets/ground.png')
         this.load.image('snow', 'assets/snow.png')
         this.load.image('target', 'assets/target.png')
         this.load.image('bomb', 'assets/bomb.png')
@@ -52,16 +52,15 @@ class PlayGame extends Phaser.Scene {
             allowGravity: false
         })
 
-        let groundSprite = this.ground.create(500, 750, 'ground').setScale(10, 4);
+        this.ground.create(500, 770, 'ground').setScale(0.2, 0.2);
 
         this.dude = this.physics.add.sprite(game.config.width / 2, game.config.height / 2, "dude")
         this.dude.body.gravity.y = gameOptions.dudeGravity
         this.physics.add.collider(this.dude, this.ground)
 
-        // Create trajectory line graphics
+        // trajectory line helper
         this.trajectoryLine = this.add.graphics()
-        this.trajectoryLine.lineStyle(2, 0xff0000, 0.8) // Red line, 2px thick, 80% opacity
-
+        
         // falling snowballs
         this.snowballsGroup = this.physics.add.group({})
         this.physics.add.overlap(this.dude, this.snowballsGroup, this.collectSnowball, null, this)
@@ -80,15 +79,13 @@ class PlayGame extends Phaser.Scene {
         })
         
         this.maxTargets = 7
-        this.maxBombs = 10
-        
-        // Create initial targets
         this.createTargets()
-
-        // Collision between thrown snowballs and targets
+        this.maxBombs = 15
+    
+        // snowball - target collision
         this.physics.add.overlap(this.thrownSnowballs, this.targetsGroup, this.hitTarget, null, this)
 
-        // Timer to spawn new targets periodically
+        // timer for spawining targets
         this.targetTimer = this.time.addEvent({
             callback: this.spawnNewTarget,
             callbackScope: this,
@@ -96,19 +93,28 @@ class PlayGame extends Phaser.Scene {
             loop: true
         })
 
-        // Timer to spawn bombs periodically
+        // timer for spawning bombs
         this.bombTimer = this.time.addEvent({
             callback: this.spawnBomb,
             callbackScope: this,
-            delay: 3000, // Every 3 seconds
+            delay: 2600,
             loop: true
         })
 
+        // timer for spawning snowballs
+        this.snowballTimer = this.time.addEvent({
+            callback: this.addSnowballs,
+            callbackScope: this,
+            delay: 600,
+            loop: true
+        })
+
+        // score visuals
         this.add.image(20,20,'target').setScale(0.07)
         this.scoreText = this.add.text(40,5,'0 XP', {fontSize: '30px', fill: '#000'})
 
-        // Add snowball count text above player's head
-        this.playerScoreText = this.add.text(this.dude.x, this.dude.y - 10, '0', {
+        // player snowball counter
+        this.playerBallText = this.add.text(this.dude.x, this.dude.y, '0', {
             fontSize: '20px', 
             fill: '#000',
             padding: { x: 5, y: 2 }
@@ -116,15 +122,14 @@ class PlayGame extends Phaser.Scene {
 
         this.cursors = this.input.keyboard.createCursorKeys()
         
-        // Add WASD keys
+        // adding WASD keys for movement instead of arrow keys
         this.wasd = this.input.keyboard.addKeys('W,S,A,D')
         
-        // Add spacebar for shooting
-        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
         
-        // Enable mouse input
+        // mouse controls
         this.input.on('pointerdown', this.shootSnowball, this)
         
+        // dude animations
         this.anims.create({
             key: "left",
             frames: this.anims.generateFrameNumbers("dude", {start: 0, end: 3}),
@@ -143,33 +148,23 @@ class PlayGame extends Phaser.Scene {
             frameRate: 10,
             repeat: -1
         })
-
-        // timer to spawn snowballs every 1.6 seconds
-        this.snowballTimer = this.time.addEvent({
-            callback: this.addSnowballs,
-            callbackScope: this,
-            delay: 600,
-            loop: true
-        })
-
-        this.facingLeft = false // Initialize facing direction (start facing right)
     }
 
+    // spawning snowballs
     addSnowballs() {
-        // create snowball at random position in the sky
         let snowball = this.snowballsGroup.create(Phaser.Math.Between(50, game.config.width - 50), Phaser.Math.Between(50, 500), "snow")
-        snowball.setScale(0.02) // Make snowballs smaller (30% of original size)
-        snowball.body.setVelocity(0, 0) // Start stationary
-        snowball.body.setGravityY(0) // No gravity initially
+        snowball.setScale(0.02)
+        snowball.body.setVelocity(0, 0) // no movement initially
+        snowball.body.setGravityY(0) // no gravity initially
         
-        // After 5 seconds, make the snowball fall
+        // enabling gravity after 3 seconds
         this.time.delayedCall(3000, () => {
             if (snowball && snowball.active) {
-                snowball.body.setGravityY(400) // Make it fall
+                snowball.body.setGravityY(400)
             }
         })
         
-        // Remove snowball if it goes off screen
+        // despawn snowball 
         this.time.delayedCall(15000, () => {
             if (snowball && snowball.active) {
                 snowball.destroy()
@@ -177,52 +172,44 @@ class PlayGame extends Phaser.Scene {
         })
     }
 
+    // snowball collection counter
     collectSnowball(dude, snowball) {
         snowball.disableBody(true, true)
-        this.snowballCount += 1; // Increase snowball count
-        this.playerScoreText.setText(this.snowballCount); // Update player head text
+        this.snowballCount += 1;
+        this.playerBallText.setText(this.snowballCount);
     }
 
+    // starting targets
     createTargets() {
-        // Create initial targets up to max limit
         for (let i = 0; i < this.maxTargets; i++) {
             this.spawnNewTarget()
         }
     }
 
+    // spawning targets
     spawnNewTarget() {
-        // Only spawn if under the limit
         if (this.targetsGroup.children.size < this.maxTargets) {
             let x = Phaser.Math.Between(100, game.config.width - 100)
-            let y = Phaser.Math.Between(200, 650) // Don't spawn too close to ground or top
-            
+            let y = Phaser.Math.Between(200, 650)
             let target = this.targetsGroup.create(x, y, 'target').setScale(0.1)
         }
     }
 
+    // shooting mechanism
     shootSnowball(pointer) {
-        if (this.snowballCount > 0) { // Check snowball count instead of score
-            // Create snowball at player position
+        if (this.snowballCount > 0) {
+            // create snowball projectile
             let projectile = this.thrownSnowballs.create(this.dude.x, this.dude.y - 20, 'snow')
             projectile.setScale(0.02)
             
-            // Calculate direction from player to mouse cursor
-            let mouseX, mouseY
+            // coords of pointer
+            let mouseX = pointer.x
+            let mouseY = pointer.y
             
-            if (pointer) {
-                // Mouse click - use pointer position
-                mouseX = pointer.x
-                mouseY = pointer.y
-            } else {
-                // Spacebar - use current mouse position
-                mouseX = this.input.activePointer.x
-                mouseY = this.input.activePointer.y
-            }
-            
-            // Calculate angle from player to mouse
+            // angle from player to mouse
             let angle = Phaser.Math.Angle.Between(this.dude.x, this.dude.y, mouseX, mouseY)
             
-            // Set velocity based on angle
+            // determine velocity based on angle
             let speed = 500
             let velocityX = Math.cos(angle) * speed
             let velocityY = Math.sin(angle) * speed
@@ -230,12 +217,12 @@ class PlayGame extends Phaser.Scene {
             projectile.body.setVelocity(velocityX, velocityY)
             projectile.body.setGravityY(200) // Slight gravity for arc
             
-            // Remove snowball from player's count
+            // subtract from player's snowball count
             this.snowballCount -= 1
-            this.playerScoreText.setText(this.snowballCount)
+            this.playerBallText.setText(this.snowballCount)
              
-            // Remove projectile after 3 seconds
-            this.time.delayedCall(3000, () => {
+            // destroy projectile (if it doesnt hit any target)
+            this.time.delayedCall(8000, () => {
                 if (projectile && projectile.active) {
                     projectile.destroy()
                 }
@@ -243,51 +230,44 @@ class PlayGame extends Phaser.Scene {
         }
     }
 
+    // target hit mechanism
     hitTarget(snowball, target) {
-        // Remove the snowball
+        // destroy projectile
         snowball.destroy()
-        
-        // Add 10 points to score for hitting target
+        // add 10 points to score
         this.score += 10
         this.scoreText.setText(this.score + ' XP')
-        
-        // Remove the hit target
+        // destroy hit targer
         target.destroy()
-        
-        // No need for delayed respawn - the timer will handle new targets
     }
 
+    // trajectory line helper
     drawTrajectoryLine() {
-        // Clear previous line
+        // constantly clear lines
         this.trajectoryLine.clear()
-        
-        // Only draw if player has snowballs
-        // if (this.snowballCount > 0) {
-            // Get mouse position
+            // pointer coords
             let mouseX = this.input.activePointer.x
             let mouseY = this.input.activePointer.y
             
-            // Calculate distance and direction
+            // distance and direction
             let fullDistance = Phaser.Math.Distance.Between(this.dude.x, this.dude.y, mouseX, mouseY)
             let angle = Phaser.Math.Angle.Between(this.dude.x, this.dude.y, mouseX, mouseY)
             
-            // Limit line length to 50 pixels
+            // limit line length
             let maxLength = 100
             let lineLength = Math.min(fullDistance, maxLength)
             
-            // Calculate end point of limited line
+            // end point of line
             let endX = this.dude.x + Math.cos(angle) * lineLength
             let endY = this.dude.y + Math.sin(angle) * lineLength
             
-            // Set line style for dotted line
-            this.trajectoryLine.lineStyle(2, "#808080", 0.2) // Red, semi-transparent
-            
-            // Create dotted line effect with limited length
-            let segments = Math.floor(lineLength / 10) // Dot every 10 pixels
+            // style
+            this.trajectoryLine.lineStyle(2, "#808080", 0.2)
+            let segments = Math.floor(lineLength / 10)
             let deltaX = (endX - this.dude.x) / segments
             let deltaY = (endY - this.dude.y) / segments
             
-            for (let i = 0; i < segments; i += 2) { // Skip every other segment for dotted effect
+            for (let i = 0; i < segments; i += 2) { // skip every other segment for dotted line effect
                 let startX = this.dude.x + (deltaX * i)
                 let startY = this.dude.y + (deltaY * i)
                 let segmentEndX = this.dude.x + (deltaX * (i + 1))
@@ -295,52 +275,54 @@ class PlayGame extends Phaser.Scene {
                 
                 this.trajectoryLine.lineBetween(startX, startY, segmentEndX, segmentEndY)
             }
-        // }awdw
     }
 
     update() {
-        if (this.wasd.A.isDown) {
-            this.dude.body.velocity.x = -gameOptions.dudeSpeed;
-            this.dude.anims.play('left', true)
-        }
-        else if (this.wasd.D.isDown) {
-            this.dude.body.velocity.x = gameOptions.dudeSpeed;
-            this.dude.anims.play('right', true)
-        }
-        else {
-            this.dude.body.velocity.x = 0;
-            this.dude.anims.play('turn', true)
-        }
+        // check for game over (.isPaused)
+        if (!this.physics.world.isPaused) {
+            //movement controls + animations
+            if (this.wasd.A.isDown) {
+                this.dude.body.velocity.x = -gameOptions.dudeSpeed;
+                this.dude.anims.play('left', true)
+            }
+            else if (this.wasd.D.isDown) {
+                this.dude.body.velocity.x = gameOptions.dudeSpeed;
+                this.dude.anims.play('right', true)
+            }
+            else {
+                this.dude.body.velocity.x = 0;
+                this.dude.anims.play('turn', true)
+            }
 
-        if (this.wasd.W.isDown && this.dude.body.touching.down) {
-            this.dude.body.velocity.y = -gameOptions.dudeGravity / 2;
+            if (this.wasd.W.isDown && this.dude.body.touching.down) {
+                this.dude.body.velocity.y = -gameOptions.dudeGravity / 2;
+            }
+
+            // player ball count position
+            this.playerBallText.x = this.dude.x;
+            this.playerBallText.y = this.dude.y - 60;
+
+            // trajectory helper
+            this.drawTrajectoryLine()
         }
-
-        // Shoot snowball when space is pressed (using mouse position)
-        if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-            this.shootSnowball()
+        
+        // game over => check for restart (R)
+        if (this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey)) {
+            this.scene.restart()
         }
-
-        // Update player score text position to follow the player
-        this.playerScoreText.x = this.dude.x;
-        this.playerScoreText.y = this.dude.y - 60;
-
-        // Draw trajectory line to mouse cursor
-        this.drawTrajectoryLine()
     }
     
     spawnBomb() {
-        // Only spawn if under the limit
         if (this.bombsGroup.children.size < this.maxBombs) {
             let x = Phaser.Math.Between(50, game.config.width - 50)
-            let y = Phaser.Math.Between(50, 300) // Spawn in upper part of sky
+            let y = Phaser.Math.Between(50, 300)
             
             let bomb = this.bombsGroup.create(x, y, 'bomb')
-            bomb.setScale(0.06) // Make bombs much smaller
-            bomb.body.setVelocity(0, 0) // Start stationary
-            bomb.body.setGravityY(0) // No gravity initially
+            bomb.setScale(0.05) 
+            bomb.body.setVelocity(0, 0) // no movement
+            bomb.body.setGravityY(0) // no gravity
             
-            // After 5 seconds, start shaking for 1 second, then fall
+            // shaking + falling timer
             this.time.delayedCall(5000, () => {
                 if (bomb && bomb.active) {
                     this.startBombShaking(bomb)
@@ -349,38 +331,40 @@ class PlayGame extends Phaser.Scene {
         }
     }
 
+    // bomb falling process
     startBombShaking(bomb) {
         if (!bomb || !bomb.active) return
         
-        // Store original position for shaking effect
+        // initial position
         bomb.originalX = bomb.x
         bomb.originalY = bomb.y
         bomb.isShaking = true
         
-        // Create shaking effect for 1 second
+        // actual shaking effect
         bomb.shakeTimer = this.time.addEvent({
             callback: () => {
                 if (bomb && bomb.active && bomb.isShaking) {
-                    // Random shake within 3 pixels
+                    // random shake (3 pixels)
                     bomb.x = bomb.originalX + Phaser.Math.Between(-3, 3)
                     bomb.y = bomb.originalY + Phaser.Math.Between(-3, 3)
                 }
             },
-            delay: 50, // Shake every 50ms
-            repeat: 20 // For 1 second (20 * 50ms = 1000ms)
+            delay: 50, // shake every 50ms
+            repeat: 20 // for 1 second (20 * 50ms = 1000ms = 1s)
         })
         
-        // After 1 second of shaking, make it fall
+        // fall
         this.time.delayedCall(1000, () => {
             if (bomb && bomb.active) {
                 bomb.isShaking = false
-                bomb.x = bomb.originalX // Reset to original position
+                // reset to original position
+                bomb.x = bomb.originalX
                 bomb.y = bomb.originalY
-                bomb.body.setGravityY(800) // Make it fall
+                bomb.body.setGravityY(800)
             }
         })
         
-        // Remove bomb after it falls off screen
+        // destroy bomb
         this.time.delayedCall(10000, () => {
             if (bomb && bomb.active) {
                 bomb.destroy()
@@ -388,14 +372,36 @@ class PlayGame extends Phaser.Scene {
         })
     }
 
+    // player - bomb interaction
     hitByBomb(dude, bomb) {
-        // Handle what happens when player touches a bomb
         bomb.destroy()
+        this.physics.pause()
+        this.snowballTimer.destroy()
+        this.targetTimer.destroy()
+        this.bombTimer.destroy()
+        this.wasd.A.enabled = false
+        this.wasd.D.enabled = false
+        this.wasd.W.enabled = false
+        this.input.off('pointerdown')
         
-        // Reduce snowball count as penalty
-        this.snowballCount = Math.max(0, this.snowballCount - 2) // Lose 2 snowballs
-        this.playerScoreText.setText(this.snowballCount)
+        // game over screen
+        let gameOverBg = this.add.rectangle(game.config.width / 2, game.config.height / 2, game.config.width, game.config.height, 0x000000, 0.7)
+        let gameOverText = this.add.text(game.config.width / 2, game.config.height / 2 - 50, 'G A M E   O V E R', {
+            fontSize: '64px',
+            fill: '#ff0000',
+            fontStyle: 'bold'
+        }).setOrigin(0.5)
         
-        console.log("Hit by bomb! Lost 2 snowballs!")
+        let finalScoreText = this.add.text(game.config.width / 2, game.config.height / 2 + 20, 'Score: ' + this.score, {
+            fontSize: '36px',
+            fill: '#ffffff'
+        }).setOrigin(0.5)
+        
+        let restartText = this.add.text(game.config.width / 2, game.config.height / 2 + 80, 'Press R to Restart', {
+            fontSize: '24px',
+            fill: '#ffffff'
+        }).setOrigin(0.5)
+        
+        this.restartKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
     }
 }

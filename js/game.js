@@ -103,7 +103,10 @@ class PlayGame extends Phaser.Scene {
         
         // Add spacebar for shooting
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
-
+        
+        // Enable mouse input
+        this.input.on('pointerdown', this.shootSnowball, this)
+        
         this.anims.create({
             key: "left",
             frames: this.anims.generateFrameNumbers("dude", {start: 0, end: 3}),
@@ -179,16 +182,35 @@ class PlayGame extends Phaser.Scene {
         }
     }
 
-    shootSnowball() {
+    shootSnowball(pointer) {
         if (this.snowballCount > 0) { // Check snowball count instead of score
             // Create snowball at player position
             let projectile = this.thrownSnowballs.create(this.dude.x, this.dude.y - 20, 'snow')
             projectile.setScale(0.02)
             
-            // Determine direction based on player facing direction
-            let velocityX = this.facingLeft ? -400 : 400 // 400 pixels per second
-            projectile.body.setVelocity(velocityX, -200) // Slight upward arc
-            projectile.body.setGravityY(300) // Make it arc down
+            // Calculate direction from player to mouse cursor
+            let mouseX, mouseY
+            
+            if (pointer) {
+                // Mouse click - use pointer position
+                mouseX = pointer.x
+                mouseY = pointer.y
+            } else {
+                // Spacebar - use current mouse position
+                mouseX = this.input.activePointer.x
+                mouseY = this.input.activePointer.y
+            }
+            
+            // Calculate angle from player to mouse
+            let angle = Phaser.Math.Angle.Between(this.dude.x, this.dude.y, mouseX, mouseY)
+            
+            // Set velocity based on angle
+            let speed = 500
+            let velocityX = Math.cos(angle) * speed
+            let velocityY = Math.sin(angle) * speed
+            
+            projectile.body.setVelocity(velocityX, velocityY)
+            projectile.body.setGravityY(200) // Slight gravity for arc
             
             // Remove snowball from player's count
             this.snowballCount -= 1
@@ -220,27 +242,22 @@ class PlayGame extends Phaser.Scene {
     update() {
         if (this.wasd.A.isDown) {
             this.dude.body.velocity.x = -gameOptions.dudeSpeed;
-            this.dude.anims.play('left', true) // Use left animation (frames 0-3)
-            this.dude.flipX = false // Don't flip since frames are already left-facing
-            this.facingLeft = true // Track facing direction
+            this.dude.anims.play('left', true)
         }
         else if (this.wasd.D.isDown) {
             this.dude.body.velocity.x = gameOptions.dudeSpeed;
-            this.dude.anims.play('right', true) // Use right animation (frames 5-9)
-            this.dude.flipX = false // Don't flip since frames are already right-facing
-            this.facingLeft = false // Track facing direction
+            this.dude.anims.play('right', true)
         }
         else {
             this.dude.body.velocity.x = 0;
             this.dude.anims.play('turn', true)
-            // Keep the current facing direction when turning
         }
 
         if (this.wasd.W.isDown && this.dude.body.touching.down) {
             this.dude.body.velocity.y = -gameOptions.dudeGravity / 2;
         }
 
-        // Shoot snowball when space is pressed
+        // Shoot snowball when space is pressed (using mouse position)
         if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
             this.shootSnowball()
         }
